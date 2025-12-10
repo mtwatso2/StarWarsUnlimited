@@ -4,12 +4,12 @@ import pandas as pd
 
 
 INPUT_FILES = [
+    "spark_of_rebellion_raw.csv",
+    "shadows_of_the_galaxy_raw.csv",
+    "twilight_of_the_republic_raw.csv",
     "jump_to_lightspeed_raw.csv",
     "legends_of_the_force_raw.csv",
-    "secrets_of_power_raw.csv",
-    "twilight_of_the_republic_raw.csv",
-    "shadows_of_the_galaxy_raw.csv",
-    "spark_of_rebellion_raw.csv",
+    "secrets_of_power_raw.csv"
 ]
 
 
