@@ -162,13 +162,20 @@ def clean_price_guide(path_in: str, path_out: str) -> None:
         .apply(strip_accents)
     )
 
-    # 3a) Prefix and suffix flag
+    # 3a) Jump to Lightspeed: fix Razor Crest capitalization mismatch
+    if "jump_to_lightspeed" in path_in.lower():
+        mask_razor = df["Name"].str.contains(
+            "razor crest - ride for hire", case=False, regex=False
+        )
+        df.loc[mask_razor, "Name"] = "Razor Crest - Ride For Hire"
+
+    # 3b) Prefix and suffix flag
     # NamePrefix is the part before " // ", used to group variants of a location.
     df["NamePrefix"] = df["Name"].str.split(" // ").str[0]
     df["HasSuffix"] = df["Name"].str.contains(" // ", regex=False)
     df = df.drop(columns=["Product Name"])
 
-    # 3b) GroupName for grouping/sort-number logic (normalized name key)
+    # 3c) GroupName for grouping/sort-number logic (normalized name key)
     df["GroupName"] = df["Name"].apply(normalize_name)
 
     # 4) BaseNum = numeric before first "/" in cleaned Number
