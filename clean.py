@@ -87,6 +87,74 @@ def normalize_name(name: str) -> str:
     return n
 
 
+# ==============================================================================
+# FIX FOR FOIL PRINTING ISSUE IN FIRST THREE SETS
+# ==============================================================================
+# For Spark of Rebellion, Shadows of the Galaxy, and Twilight of the Republic,
+# some rows have "Printing:NormalFoilNormal" which indicates a foil variant
+# exists but wasn't separated. This function modifies the Product Name to add
+# "(Foil)" or "(Hyperspace Foil)" so the Type extraction logic handles it.
+# ==============================================================================
+
+def fix_foil_printing_issue(df: pd.DataFrame, path_in: str) -> pd.DataFrame:
+    """
+    Fix the foil printing issue by modifying Product Name for affected rows.
+    
+    When a row has "Printing:NormalFoilNormal", duplicate it and modify the
+    Product Name to indicate the foil variant.
+    
+    Args:
+        df: The DataFrame after initial CSV load
+        path_in: The input file path to check if we're processing one of the three affected sets
+        
+    Returns:
+        The DataFrame with foil variants added via modified Product Names
+    """
+    # Only apply this fix to the first three sets
+    affected_sets = ["spark_of_rebellion", "shadows_of_the_galaxy", "twilight_of_the_republic"]
+    
+    # Check if this is one of the affected set
+    is_affected_set = any(set_name in path_in.lower() for set_name in affected_sets)
+    
+    if not is_affected_set:
+        return df
+    
+    # Check if "Printing" column exists
+    if "Printing" not in df.columns:
+        return df
+    
+    # Find rows with the problematic printing value
+    foil_issue_mask = df["Printing"].astype(str).str.contains("NormalFoilNormal", na=False)
+    
+    if not foil_issue_mask.any():
+        return df
+    
+    # Get the rows that need to be duplicated
+    rows_to_duplicate = df[foil_issue_mask].copy()
+    
+    # Create foil variants by modifying Product Name
+    for idx, row in rows_to_duplicate.iterrows():
+        product_name = row["Product Name"]
+        
+        # Create a duplicate row
+        new_row = row.copy()
+        
+        # Modify the Product Name to indicate foil variant
+        if "(Hyperspace)" in product_name:
+            # Change "(Hyperspace)" to "(Hyperspace Foil)"
+            new_row["Product Name"] = product_name.replace("(Hyperspace)", "(Hyperspace Foil)")
+        else:
+            # Add "(Foil)" to the name (assume it's Normal if no parentheses)
+            new_row["Product Name"] = product_name + " (Foil)"
+        
+        # Append the new row to the DataFrame
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    
+    print(f"  → Fixed {len(rows_to_duplicate)} rows with foil printing issue")
+    
+    return df
+
+
 # ---------- main cleaner ----------
 def clean_price_guide(path_in: str, path_out: str) -> None:
     """
@@ -102,6 +170,9 @@ def clean_price_guide(path_in: str, path_out: str) -> None:
     """
     df = pd.read_csv(path_in)
     df["Product Name"] = df["Product Name"].apply(normalize_punctuation)
+
+    # Fix foil printing issue BEFORE dropping columns (for affected sets only)
+    df = fix_foil_printing_issue(df, path_in)
 
     # 1) Keep only Product Name, Rarity, Number
     df = df[["Product Name", "Rarity", "Number"]]
@@ -195,7 +266,7 @@ def clean_price_guide(path_in: str, path_out: str) -> None:
         g["Sort Number"] = base
         return g
 
-    df = df.groupby("GroupName", group_keys=False).apply(group_sort_number)
+    df = df.groupby("GroupName", group_keys=False).apply(group_sort_number, include_groups=False)
 
     # 6) Share Sort Number between base rows and 'NamePrefix // ...' variants
     # Ensures plain locations and their '//' variants sort together.
